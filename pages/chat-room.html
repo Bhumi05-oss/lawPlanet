@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content" style="max-width:1100px;">
+    <h1 style="margin-bottom:16px;">Messages</h1>
+    <div class="chat-layout">
+      <div class="chat-list" id="chatList"></div>
+      <div class="chat-window" id="chatWindow">
+        <div class="empty-state">
+          <div class="icon">💬</div>
+          <p>Select a conversation to start chatting</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth();
+  renderSidebar("chats");
+
+  const params = new URLSearchParams(window.location.search);
+  let activeConvId = params.get("id") ? parseInt(params.get("id")) : null;
+  let pollTimer = null;
+  let lastMessageCount = 0;
+
+  async function loadChatList() {
+    const listEl = document.getElementById("chatList");
+    try {
+      const convs = await api("/api/conversations");
+      if (convs.length === 0) {
+        listEl.innerHTML = `<div class="empty-state" style="padding:30px 16px;"><p>No conversations yet.</p></div>`;
+        return;
+      }
+      if (!activeConvId) activeConvId = convs[0].id;
+
+      listEl.innerHTML = convs.map(c => `
+        <div class="chat-list-item ${c.id === activeConvId ? 'active' : ''}" onclick="openConversation(${c.id})">
+          <div class="avatar sm" style="background:${c.partner.avatar_color}">${initials(c.partner.full_name)}</div>
+          <div class="info">
+            <div class="name">${escapeHtml(c.partner.full_name)}</div>
+            <div class="preview">${escapeHtml(c.last_message || "No messages yet")}</div>
+          </div>
+          ${c.unread_count > 0 ? `<span class="unread-dot"></span>` : ""}
+        </div>
+      `).join("");
+
+      if (activeConvId) openConversation(activeConvId, true);
+    } catch (e) {
+      listEl.innerHTML = `<p class="text-muted" style="padding:16px;">${e.message}</p>`;
+    }
+  }
+
+  function openConversation(convId, skipHistoryUpdate) {
+    activeConvId = convId;
+    document.querySelectorAll(".chat-list-item").forEach(el => el.classList.remove("active"));
+    if (!skipHistoryUpdate) {
+      window.history.replaceState({}, "", `/chat-room.html?id=${convId}`);
+      loadChatList();
+    }
+    renderChatWindow();
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(renderChatWindow, 3000);
+  }
+
+  async function renderChatWindow() {
+    if (!activeConvId) return;
+    const windowEl = document.getElementById("chatWindow");
+    try {
+      const data = await api(`/api/conversations/${activeConvId}/messages`);
+      const partner = data.partner;
+      const isNewRender = !document.getElementById("chatHeader-" + activeConvId);
+
+      if (isNewRender) {
+        windowEl.innerHTML = `
+          <div class="chat-window-header" id="chatHeader-${activeConvId}">
+            <div class="avatar sm" style="background:${partner.avatar_color}">${initials(partner.full_name)}</div>
+            <div>
+              <div style="font-weight:600;">${escapeHtml(partner.full_name)}</div>
+              <div class="text-muted" style="font-size:0.78rem;text-transform:capitalize;">${partner.role}</div>
+            </div>
+          </div>
+          <div class="chat-messages" id="msgArea"></div>
+          <form class="chat-input-row" id="msgForm">
+            <input type="text" id="msgInput" placeholder="Type a message..." autocomplete="off" required>
+            <button type="submit" class="btn btn-primary btn-sm">Send</button>
+          </form>
+        `;
+        document.getElementById("msgForm").addEventListener("submit", sendMessage);
+        lastMessageCount = 0;
+      }
+
+      const msgArea = document.getElementById("msgArea");
+      if (data.messages.length !== lastMessageCount) {
+        msgArea.innerHTML = data.messages.map(m => `
+          <div class="msg-bubble ${m.sender_id === user.id ? 'mine' : 'theirs'}">
+            ${escapeHtml(m.content)}
+            <span class="msg-time">${formatTime(m.created_at)}</span>
+          </div>
+        `).join("");
+        msgArea.scrollTop = msgArea.scrollHeight;
+        lastMessageCount = data.messages.length;
+      }
+    } catch (e) {
+      windowEl.innerHTML = `<div class="empty-state"><p>Could not load conversation: ${e.message}</p></div>`;
+    }
+  }
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    const input = document.getElementById("msgInput");
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = "";
+    try {
+      await api(`/api/conversations/${activeConvId}/messages`, { method: "POST", body: { content } });
+      lastMessageCount = 0; // force re-render
+      renderChatWindow();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  loadChatList();
+</script>
+</body>
+</html>

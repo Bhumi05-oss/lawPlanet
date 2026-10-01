@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lawyer Profile - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content" id="profileContent">
+    <div class="loading-spinner"></div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("client");
+  renderSidebar("find");
+
+  const params = new URLSearchParams(window.location.search);
+  const lawyerId = params.get("id");
+
+  async function loadProfile() {
+    const container = document.getElementById("profileContent");
+    if (!lawyerId) {
+      container.innerHTML = `<p class="text-muted">No lawyer specified.</p>`;
+      return;
+    }
+    try {
+      const l = await api(`/api/lawyers/${lawyerId}`);
+      const ld = l.lawyer_details || {};
+      const courts = (ld.courts || "").split(",").map(c => c.trim()).filter(Boolean);
+
+      container.innerHTML = `
+        <div class="card">
+          <div class="profile-header">
+            <div class="avatar lg" style="background:${l.avatar_color}">${initials(l.full_name)}</div>
+            <div class="profile-header-info" style="flex:1;">
+              <h1>${escapeHtml(l.full_name)}</h1>
+              <div class="practice">${escapeHtml(ld.practice_area || "General Practice")}</div>
+              <div class="meta-line text-muted">📍 ${escapeHtml(l.city || "—")} &nbsp;•&nbsp; ${ld.experience_years || 0} years experience &nbsp;•&nbsp; ₹${ld.consultation_fee || 0} consultation</div>
+              <div class="chip-row">
+                ${ld.verified ? `<span class="badge badge-gold">✓ Bar Council Verified</span>` : ""}
+                ${ld.bar_council_id ? `<span class="chip">Bar ID: ${escapeHtml(ld.bar_council_id)}</span>` : ""}
+                ${courts.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join("")}
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="startChat(${l.id})">💬 Chat Now</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>About</h2></div>
+          <p class="text-muted mt-0 mb-0">${escapeHtml(ld.bio || "This lawyer hasn't added a bio yet.")}</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Case Portfolio (${l.cases.length})</h2></div>
+          ${l.cases.length ? l.cases.map(c => `
+            <div class="case-item">
+              <div class="case-item-top">
+                <h4>${escapeHtml(c.title)}</h4>
+                <span class="${c.status === 'open' ? 'status-open' : 'status-closed'}">${c.status.toUpperCase()}</span>
+              </div>
+              <div class="meta-line text-muted">${escapeHtml(c.practice_area || "")}</div>
+              <p>${escapeHtml(c.description || "")}</p>
+              ${c.outcome ? `<p><strong>Outcome:</strong> ${escapeHtml(c.outcome)}</p>` : ""}
+            </div>
+          `).join("") : `<p class="text-muted">No cases added yet.</p>`}
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = `<p class="text-muted">Could not load profile: ${e.message}</p>`;
+    }
+  }
+
+  async function startChat(id) {
+    try {
+      const conv = await api("/api/conversations", { method: "POST", body: { lawyer_id: id } });
+      window.location.href = `/chat-room.html?id=${conv.id}`;
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  loadProfile();
+</script>
+</body>
+</html>

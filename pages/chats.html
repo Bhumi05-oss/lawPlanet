@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Chats - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1 id="pageTitle">My Chats</h1>
+    <p class="page-subtitle">All your conversations in one place.</p>
+    <div class="card" style="padding:0;">
+      <div id="chatList"><div class="loading-spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth();
+  document.getElementById("pageTitle").textContent = user.role === "lawyer" ? "Client Chats" : "My Chats";
+  renderSidebar("chats");
+
+  async function loadChats() {
+    const container = document.getElementById("chatList");
+    try {
+      const convs = await api("/api/conversations");
+      if (convs.length === 0) {
+        container.innerHTML = `<div class="empty-state" style="padding:50px 20px;">
+          <div class="icon">💬</div>
+          <p>No conversations yet.</p>
+          ${user.role === "client" ? `<a href="/find-lawyers.html" class="btn btn-primary btn-sm">Find a Lawyer</a>` : ""}
+        </div>`;
+        return;
+      }
+      container.innerHTML = convs.map(c => `
+        <a href="/chat-room.html?id=${c.id}">
+          <div class="chat-list-item">
+            <div class="avatar" style="background:${c.partner.avatar_color}">${initials(c.partner.full_name)}</div>
+            <div class="info">
+              <div class="name">${escapeHtml(c.partner.full_name)}</div>
+              <div class="preview">${escapeHtml(c.last_message || "No messages yet")}</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="text-muted" style="font-size:0.75rem;">${timeAgo(c.last_message_at)}</div>
+              ${c.unread_count > 0 ? `<span class="unread-dot" style="display:inline-block;margin-top:6px;"></span>` : ""}
+            </div>
+          </div>
+        </a>
+      `).join("");
+    } catch (e) {
+      container.innerHTML = `<p class="text-muted" style="padding:20px;">Could not load conversations: ${e.message}</p>`;
+    }
+  }
+  loadChats();
+</script>
+</body>
+</html>

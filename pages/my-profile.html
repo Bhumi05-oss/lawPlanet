@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Profile - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1>My Profile</h1>
+    <p class="page-subtitle">Update your basic account information.</p>
+
+    <div class="card" style="max-width:520px;">
+      <div id="profAlert" class="alert alert-success hidden"></div>
+      <form id="profileForm">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="pName" required>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="pEmail" disabled>
+          <div class="hint">Email cannot be changed in this demo.</div>
+        </div>
+        <div class="form-group">
+          <label>City</label>
+          <select id="pCity"></select>
+        </div>
+        <div class="form-group">
+          <label>Phone (optional)</label>
+          <input type="text" id="pPhone" placeholder="e.g. 98765 43210">
+        </div>
+        <button type="submit" class="btn btn-primary" id="profSubmitBtn">Save Changes</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth();
+  renderSidebar("profile");
+
+  async function loadForm() {
+    const meta = await api("/api/meta");
+    document.getElementById("pCity").innerHTML = meta.cities.map(c =>
+      `<option value="${c}" ${c === user.city ? "selected" : ""}>${c}</option>`).join("");
+    document.getElementById("pName").value = user.full_name;
+    document.getElementById("pEmail").value = user.email;
+    document.getElementById("pPhone").value = user.phone || "";
+  }
+
+  document.getElementById("profileForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("profSubmitBtn");
+    const alertEl = document.getElementById("profAlert");
+    btn.disabled = true; btn.textContent = "Saving...";
+    try {
+      const updated = await api("/api/profile", {
+        method: "PUT",
+        body: {
+          full_name: document.getElementById("pName").value,
+          city: document.getElementById("pCity").value,
+          phone: document.getElementById("pPhone").value,
+        },
+      });
+      Auth.setUser({ ...user, ...updated });
+      alertEl.textContent = "Profile updated successfully.";
+      alertEl.classList.remove("hidden");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "Save Changes";
+    }
+  });
+
+  loadForm();
+</script>
+</body>
+</html>

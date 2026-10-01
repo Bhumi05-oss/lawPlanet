@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1 id="greeting">Welcome</h1>
+    <p class="page-subtitle">Here's what's happening with your legal matters.</p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="statConvos">-</div>
+        <div class="stat-label">Active Conversations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statUnread">-</div>
+        <div class="stat-label">Unread Messages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statCity">-</div>
+        <div class="stat-label">Your City</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Recent Conversations</h2>
+        <a href="/chats.html" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div id="recentChats"><div class="loading-spinner"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Find a Lawyer</h2>
+        <a href="/find-lawyers.html" class="btn btn-primary btn-sm">Search Now</a>
+      </div>
+      <p class="text-muted mt-0 mb-0">Browse lawyers by city, practice area, and experience to find the right fit for your legal matter.</p>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("client");
+  document.getElementById("greeting").textContent = `Welcome back, ${user.full_name.split(" ")[0]}`;
+  document.getElementById("statCity").textContent = user.city || "—";
+  renderSidebar("dashboard");
+
+  async function loadDashboard() {
+    try {
+      const convs = await api("/api/conversations");
+      document.getElementById("statConvos").textContent = convs.length;
+      document.getElementById("statUnread").textContent = convs.reduce((s, c) => s + c.unread_count, 0);
+
+      const container = document.getElementById("recentChats");
+      if (convs.length === 0) {
+        container.innerHTML = `<p class="text-muted">No conversations yet. Find a lawyer to get started!</p>`;
+        return;
+      }
+      container.innerHTML = convs.slice(0, 5).map(c => `
+        <a href="/chat-room.html?id=${c.id}" style="display:block;">
+          <div class="chat-list-item" style="border-radius:8px;">
+            <div class="avatar sm" style="background:${c.partner.avatar_color}">${initials(c.partner.full_name)}</div>
+            <div class="info">
+              <div class="name">${escapeHtml(c.partner.full_name)}</div>
+              <div class="preview">${escapeHtml(c.last_message || "No messages yet")}</div>
+            </div>
+            ${c.unread_count > 0 ? `<span class="unread-dot"></span>` : ""}
+          </div>
+        </a>
+      `).join("");
+    } catch (e) {
+      document.getElementById("recentChats").innerHTML = `<p class="text-muted">Could not load conversations.</p>`;
+    }
+  }
+  loadDashboard();
+</script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lawyer Profile - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1>Lawyer Profile</h1>
+    <p class="page-subtitle">This information is shown to clients browsing lawyers.</p>
+
+    <div class="card" style="max-width:600px;">
+      <div id="ldAlert" class="alert alert-success hidden"></div>
+      <form id="ldForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Bar Council ID</label>
+            <input type="text" id="ldBarId" placeholder="e.g. D/1234/2020">
+          </div>
+          <div class="form-group">
+            <label>Years of Experience</label>
+            <input type="number" id="ldExperience" min="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Primary Practice Area</label>
+            <select id="ldPracticeArea"></select>
+          </div>
+          <div class="form-group">
+            <label>Consultation Fee (₹)</label>
+            <input type="number" id="ldFee" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Courts Practicing In</label>
+          <input type="text" id="ldCourts" placeholder="Comma separated, e.g. Delhi High Court, Supreme Court">
+        </div>
+        <div class="form-group">
+          <label>Bio</label>
+          <textarea id="ldBio" rows="4" placeholder="Tell clients about your experience and approach..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" id="ldSubmitBtn">Save Profile</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("lawyer");
+  renderSidebar("lawyerprofile");
+
+  async function loadForm() {
+    const meta = await api("/api/meta");
+    const me = await api("/api/me");
+    const ld = me.lawyer_details || {};
+    document.getElementById("ldPracticeArea").innerHTML = meta.practice_areas.map(p =>
+      `<option value="${p}" ${p === ld.practice_area ? "selected" : ""}>${p}</option>`).join("");
+    document.getElementById("ldBarId").value = ld.bar_council_id || "";
+    document.getElementById("ldExperience").value = ld.experience_years || 0;
+    document.getElementById("ldFee").value = ld.consultation_fee || 0;
+    document.getElementById("ldCourts").value = ld.courts || "";
+    document.getElementById("ldBio").value = ld.bio || "";
+  }
+
+  document.getElementById("ldForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("ldSubmitBtn");
+    const alertEl = document.getElementById("ldAlert");
+    btn.disabled = true; btn.textContent = "Saving...";
+    try {
+      await api("/api/lawyer-details", {
+        method: "PUT",
+        body: {
+          bar_council_id: document.getElementById("ldBarId").value,
+          experience_years: document.getElementById("ldExperience").value,
+          practice_area: document.getElementById("ldPracticeArea").value,
+          consultation_fee: document.getElementById("ldFee").value,
+          courts: document.getElementById("ldCourts").value,
+          bio: document.getElementById("ldBio").value,
+        },
+      });
+      alertEl.textContent = "Lawyer profile updated successfully.";
+      alertEl.classList.remove("hidden");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "Save Profile";
+    }
+  });
+
+  loadForm();
+</script>
+</body>
+</html>

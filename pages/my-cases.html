@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Cases - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1>My Cases</h1>
+    <p class="page-subtitle">Manage your case portfolio. Clients see this when viewing your profile.</p>
+
+    <div class="card">
+      <div class="card-header"><h2>Add a New Case</h2></div>
+      <div id="caseAlert" class="alert alert-error hidden"></div>
+      <form id="caseForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Case Title</label>
+            <input type="text" id="cTitle" required placeholder="e.g. Property dispute resolution">
+          </div>
+          <div class="form-group">
+            <label>Practice Area</label>
+            <select id="cPracticeArea"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="cDescription" rows="3" placeholder="Brief summary of the case (avoid client-identifying details)"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Outcome (optional)</label>
+          <input type="text" id="cOutcome" placeholder="e.g. Settled in client's favor">
+        </div>
+        <button type="submit" class="btn btn-primary" id="caseSubmitBtn">Add Case</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Your Cases</h2></div>
+      <div id="casesList"><div class="loading-spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("lawyer");
+  renderSidebar("cases");
+
+  async function loadMeta() {
+    const meta = await api("/api/meta");
+    document.getElementById("cPracticeArea").innerHTML = meta.practice_areas.map(p => `<option value="${p}">${p}</option>`).join("");
+  }
+
+  function caseItem(c) {
+    return `
+      <div class="case-item" id="case-${c.id}">
+        <div class="case-item-top">
+          <h4>${escapeHtml(c.title)}</h4>
+          <span class="${c.status === 'open' ? 'status-open' : 'status-closed'}">${c.status.toUpperCase()}</span>
+        </div>
+        <div class="meta-line text-muted">${escapeHtml(c.practice_area || "")}</div>
+        <p>${escapeHtml(c.description || "")}</p>
+        ${c.outcome ? `<p><strong>Outcome:</strong> ${escapeHtml(c.outcome)}</p>` : ""}
+        <div class="actions" style="margin-top:10px;">
+          <button class="btn btn-outline btn-sm" onclick="toggleStatus(${c.id}, '${c.status}')">
+            Mark as ${c.status === 'open' ? 'Closed' : 'Open'}
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCase(${c.id})">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadCases() {
+    const container = document.getElementById("casesList");
+    try {
+      const cases = await api("/api/cases/mine");
+      container.innerHTML = cases.length ? cases.map(caseItem).join("") : `<p class="text-muted">You haven't added any cases yet.</p>`;
+    } catch (e) {
+      container.innerHTML = `<p class="text-muted">Could not load cases: ${e.message}</p>`;
+    }
+  }
+
+  document.getElementById("caseForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("caseSubmitBtn");
+    const alertEl = document.getElementById("caseAlert");
+    alertEl.classList.add("hidden");
+    btn.disabled = true; btn.textContent = "Adding...";
+    try {
+      await api("/api/cases", {
+        method: "POST",
+        body: {
+          title: document.getElementById("cTitle").value,
+          practice_area: document.getElementById("cPracticeArea").value,
+          description: document.getElementById("cDescription").value,
+          outcome: document.getElementById("cOutcome").value,
+        },
+      });
+      document.getElementById("caseForm").reset();
+      await loadCases();
+    } catch (err) {
+      alertEl.textContent = err.message;
+      alertEl.classList.remove("hidden");
+    } finally {
+      btn.disabled = false; btn.textContent = "Add Case";
+    }
+  });
+
+  async function toggleStatus(id, currentStatus) {
+    try {
+      await api(`/api/cases/${id}`, { method: "PUT", body: { status: currentStatus === "open" ? "closed" : "open" } });
+      loadCases();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function deleteCase(id) {
+    if (!confirm("Delete this case? This cannot be undone.")) return;
+    try {
+      await api(`/api/cases/${id}`, { method: "DELETE" });
+      loadCases();
+    } catch (e) { alert(e.message); }
+  }
+
+  loadMeta().then(loadCases);
+</script>
+</body>
+</html>

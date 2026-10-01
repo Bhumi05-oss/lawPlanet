@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1 id="greeting">Welcome</h1>
+    <p class="page-subtitle">Here's an overview of your practice on LawPlanet.</p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="statCases">-</div>
+        <div class="stat-label">Total Cases</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statConvos">-</div>
+        <div class="stat-label">Client Conversations</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statUnread">-</div>
+        <div class="stat-label">Unread Messages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="statExp">-</div>
+        <div class="stat-label">Years of Experience</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Recent Client Messages</h2>
+        <a href="/chats.html" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div id="recentChats"><div class="loading-spinner"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>Your Case Portfolio</h2>
+        <a href="/my-cases.html" class="btn btn-primary btn-sm">Manage Cases</a>
+      </div>
+      <p class="text-muted mt-0 mb-0">Keep your case portfolio up to date — clients see this when browsing your profile.</p>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("lawyer");
+  document.getElementById("greeting").textContent = `Welcome back, ${user.full_name.split(" ")[0]}`;
+  renderSidebar("dashboard");
+
+  async function loadDashboard() {
+    try {
+      const me = await api("/api/me");
+      const ld = me.lawyer_details || {};
+      document.getElementById("statExp").textContent = ld.experience_years ?? 0;
+
+      const cases = await api("/api/cases/mine");
+      document.getElementById("statCases").textContent = cases.length;
+
+      const convs = await api("/api/conversations");
+      document.getElementById("statConvos").textContent = convs.length;
+      document.getElementById("statUnread").textContent = convs.reduce((s, c) => s + c.unread_count, 0);
+
+      const container = document.getElementById("recentChats");
+      if (convs.length === 0) {
+        container.innerHTML = `<p class="text-muted">No client conversations yet.</p>`;
+        return;
+      }
+      container.innerHTML = convs.slice(0, 5).map(c => `
+        <a href="/chat-room.html?id=${c.id}" style="display:block;">
+          <div class="chat-list-item" style="border-radius:8px;">
+            <div class="avatar sm" style="background:${c.partner.avatar_color}">${initials(c.partner.full_name)}</div>
+            <div class="info">
+              <div class="name">${escapeHtml(c.partner.full_name)}</div>
+              <div class="preview">${escapeHtml(c.last_message || "No messages yet")}</div>
+            </div>
+            ${c.unread_count > 0 ? `<span class="unread-dot"></span>` : ""}
+          </div>
+        </a>
+      `).join("");
+    } catch (e) {
+      document.getElementById("recentChats").innerHTML = `<p class="text-muted">Could not load data.</p>`;
+    }
+  }
+  loadDashboard();
+</script>
+</body>
+</html>

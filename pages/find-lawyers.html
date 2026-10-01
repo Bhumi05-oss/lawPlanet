@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Lawyers - LawPlanet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-shell">
+  <div class="sidebar"></div>
+  <div class="main-content">
+    <h1>Find Lawyers</h1>
+    <p class="page-subtitle">Search by city, practice area, or experience to find the right lawyer for you.</p>
+
+    <div class="card">
+      <div class="filter-bar">
+        <div class="form-group">
+          <label>Search by name</label>
+          <input type="text" id="fSearch" placeholder="e.g. Priya Sharma">
+        </div>
+        <div class="form-group">
+          <label>City</label>
+          <select id="fCity"><option value="">All Cities</option></select>
+        </div>
+        <div class="form-group">
+          <label>Practice Area</label>
+          <select id="fPracticeArea"><option value="">All Practice Areas</option></select>
+        </div>
+        <div class="form-group">
+          <label>Min. Experience (years)</label>
+          <input type="number" id="fExperience" min="0" placeholder="0">
+        </div>
+        <button class="btn btn-primary" onclick="loadLawyers()">Search</button>
+      </div>
+    </div>
+
+    <div id="resultsInfo" class="text-muted" style="margin: 16px 0;"></div>
+    <div id="lawyerGrid" class="lawyer-grid"><div class="loading-spinner"></div></div>
+  </div>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/layout.js"></script>
+<script>
+  const user = requireAuth("client");
+  renderSidebar("find");
+
+  async function loadMeta() {
+    const meta = await api("/api/meta");
+    document.getElementById("fCity").innerHTML += meta.cities.map(c => `<option value="${c}">${c}</option>`).join("");
+    document.getElementById("fPracticeArea").innerHTML += meta.practice_areas.map(p => `<option value="${p}">${p}</option>`).join("");
+  }
+
+  function lawyerCard(l) {
+    return `
+      <div class="lawyer-card">
+        <div class="lawyer-card-top">
+          <div class="avatar" style="background:${l.avatar_color}">${initials(l.full_name)}</div>
+          <div>
+            <div class="name">${escapeHtml(l.full_name)}</div>
+            <div class="practice">${escapeHtml(l.practice_area || "General Practice")}</div>
+          </div>
+        </div>
+        <div class="meta-line">📍 ${escapeHtml(l.city || "—")} &nbsp;•&nbsp; ${l.experience_years || 0} yrs experience</div>
+        <div class="meta-line">💰 Consultation: ₹${l.consultation_fee || 0}</div>
+        <div class="chip-row">
+          ${l.verified ? `<span class="badge badge-gold">✓ Bar Verified</span>` : ""}
+        </div>
+        <div class="actions">
+          <a href="/lawyer-profile.html?id=${l.id}" class="btn btn-outline btn-sm">View Profile</a>
+          <button class="btn btn-primary btn-sm" onclick="startChat(${l.id})">Chat Now</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadLawyers() {
+    const grid = document.getElementById("lawyerGrid");
+    grid.innerHTML = `<div class="loading-spinner"></div>`;
+    const params = new URLSearchParams();
+    const q = document.getElementById("fSearch").value.trim();
+    const city = document.getElementById("fCity").value;
+    const practiceArea = document.getElementById("fPracticeArea").value;
+    const exp = document.getElementById("fExperience").value;
+    if (q) params.set("q", q);
+    if (city) params.set("city", city);
+    if (practiceArea) params.set("practice_area", practiceArea);
+    if (exp) params.set("min_experience", exp);
+
+    try {
+      const lawyers = await api(`/api/lawyers?${params.toString()}`);
+      document.getElementById("resultsInfo").textContent = `${lawyers.length} lawyer${lawyers.length !== 1 ? 's' : ''} found`;
+      grid.innerHTML = lawyers.length
+        ? lawyers.map(lawyerCard).join("")
+        : `<p class="text-muted">No lawyers match your filters. Try broadening your search.</p>`;
+    } catch (e) {
+      grid.innerHTML = `<p class="text-muted">Could not load lawyers: ${e.message}</p>`;
+    }
+  }
+
+  async function startChat(lawyerId) {
+    try {
+      const conv = await api("/api/conversations", { method: "POST", body: { lawyer_id: lawyerId } });
+      window.location.href = `/chat-room.html?id=${conv.id}`;
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  loadMeta().then(loadLawyers);
+</script>
+</body>
+</html>
